@@ -1,0 +1,25 @@
+---
+title: "keystonefig"
+output: html_document
+---
+
+Working through wrangling data and will then create new versions of the graphs.
+
+loading data and needed packages
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+keystone <- read.csv("FINALDATABASE.xlsx - Master Data.csv")
+```
+
+```{r}
+ggplot(keystone, color = "ecosystem type", aes(x =  species, y = ci)) +
+  geom_boxplot()
+
+```
+
+
+
+
