@@ -9,17 +9,163 @@ loading data and needed packages
 ```{r}
 library(ggplot2)
 library(dplyr)
+library(tidyverse)
+library(janitor)
 
 
 keystone <- read.csv("FINALDATABASE.xlsx - Master Data.csv")
+
+```
+cleaning data 
+```{r}
+keystone_clean <- keystone %>%
+  clean_names() %>% 
+    filter(usable_if_no_why == "Yes") %>%
+  mutate(
+    ci = as.numeric(ci),
+    species = as.factor(species),
+    ecosystem_type = as.factor(ecosystem_type)
+  ) %>%
+    filter(!is.na(ci), !is.na(species), !is.na(ecosystem_type))
+```
+
+
+```{r}
+library(stringr)
+
+keystone_clean <- keystone_clean %>%
+  mutate(
+    ecosystem_type = ecosystem_type %>%
+      str_trim() %>%                 
+      str_squish() %>%               
+      str_to_lower()                
+  )
+
+keystone_clean <- keystone_clean %>%
+  mutate(
+    ecosystem_type = case_when(
+      
+      ecosystem_type == "desert" ~ "Desert",
+      
+      ecosystem_type == "freshwater lakes" ~ "Freshwater Lakes",
+      
+      ecosystem_type %in% c("lake", "lakes") ~ "Lakes",
+      
+      ecosystem_type == "riverine" ~ "River",
+      
+      ecosystem_type == "temperate" ~ "Temperate zone",
+      
+      ecosystem_type == "estuary" ~ "Estuary",
+      
+      TRUE ~ str_to_sentence(ecosystem_type)  # clean formatting for everything else
+    )
+  )
+
+keystone_clean <- keystone_clean %>%
+  mutate(
+    species = species %>%
+      str_trim() %>%
+      str_replace_all("\\s+", " ")
+  ) %>%
+  mutate(
+    species = case_when(
+      
+      species == "Canis Lupus" ~ "Canis lupus",
+      
+      species %in% c("Pisaster ochraceous", "Pisaster ochraceus") ~ "Pisaster ochraceus",
+      
+      species == "Mustela erminia" ~ "Mustela erminea",
+      
+      species == "Perca fluvia" ~ "Perca fluviatilis",
+      
+      species == "Dipodomys" ~ "Dipodomys sp.",
+      
+      TRUE ~ species
+    )
+  )
+
 ```
 
 ```{r}
-ggplot(keystone, color = "ecosystem type", aes(x =  species, y = ci)) +
-  geom_boxplot()
+ggplot(keystone_clean, aes(x =  species, y = log(ci), color = ecosystem_type)) +  
+  # if we have log(1) = 0 means --> anything that moves specifically away from 0 is a keystone. however keep the lines as a good indicator of what we are deffining as signifigant 
+  geom_boxplot(alpha = 0.7)+
+  geom_hline(yintercept = 1, linetype = "dashed", size = .5) +
+    geom_hline(yintercept = -1, linetype = "dashed", size = .5) +
+  labs( title = "Keystone Species Classification by Interaction Strength",
+        x = "Species",
+        y = "Community Importance (CI)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 
+```{r}
+library(tidyverse)
+library(forcats)
+library(ggplot2)
 
+keystone_clean <- keystone_clean %>%
+  mutate(ecosystem_type = fct_reorder(ecosystem_type, ci, .fun = median))
+
+ggplot(keystone_clean, aes(x = ecosystem_type, y = ci, color = ecosystem_type)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5) +
+  geom_jitter(width = 0.2, size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 1, linetype = "dashed", size = 0.8) +
+  coord_flip() +
+  coord_cartesian(ylim = c(-75, 10)) +
+  labs(
+    title = "Community Importance (CI) Across Ecosystem Types",
+    x = "Ecosystem Type",
+    y = "Community Importance (CI)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+kruskal.test(ci ~ ecosystem_type, data = keystone_clean)
+
+keystone_summary <- keystone_clean %>%
+  mutate(keystone_flag = ci >= 1) %>%
+  group_by(ecosystem_type) %>%
+  summarise(
+    n = n(),
+    keystone_count = sum(keystone_flag, na.rm = TRUE),
+    keystone_prop = keystone_count / n
+  )
+
+ggplot(keystone_summary, aes(x = ecosystem_type, y = keystone_prop)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Proportion of Keystone-Level Observations (CI ≥ 1)",
+    x = "Ecosystem Type",
+    y = "Proportion ≥ 1"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+library(tidyverse)
+library(forcats)
+
+keystone_clean <- keystone_clean %>%
+  mutate(ecosystem_type = fct_reorder(ecosystem_type, ci, .fun = median))
+
+ggplot(keystone_clean, aes(x = ecosystem_type, y = ci, fill = ecosystem_type)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.5, size = 1.8) +
+  geom_hline(yintercept = 1, linetype = "dashed", linewidth = 0.8) +
+  coord_flip() +
+  coord_cartesian(ylim = c(-75, 10)) +
+  labs(
+    title = "Community Importance (CI) Across Ecosystem Types",
+    x = "Ecosystem Type",
+    y = "Community Importance (CI)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none"
+  )
+```
 
 
